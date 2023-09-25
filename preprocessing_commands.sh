@@ -181,3 +181,12 @@ date
 
 ## Submit the above code to the HPC
 sbatch fmriprep_batch1.sh
+
+
+
+
+### XCP commands
+sublist=$(ls derivatives/fmriprep/*html | cut -d / -f 3 | cut -d . -f 1 | cut -d - -f 2 )
+for sub in $(echo $sublist); do
+sudo docker run --rm -it -v $fmriprep_dir:/data/ -v $out_dir:/out pennlinc/xcp_d:latest /data /out participant --nuisance-regressors $method --clean-workdir --smoothing 6  --fd-thresh 0.5 --min_coverage 0.001 --combineruns --participant-label sub-"$sub"
+done
