@@ -190,3 +190,9 @@ sublist=$(ls derivatives/fmriprep/*html | cut -d / -f 3 | cut -d . -f 1 | cut -d
 for sub in $(echo $sublist); do
 sudo docker run --rm -it -v $fmriprep_dir:/data/ -v $out_dir:/out pennlinc/xcp_d:latest /data /out participant --nuisance-regressors $method --clean-workdir --smoothing 6  --fd-thresh 0.5 --min_coverage 0.001 --combineruns --participant-label sub-"$sub"
 done
+## Calculate the time lag maps 
+for subject in $(cat /home/koba/Desktop/Stroke/scripts/subjects.txt)
+do
+	mkdir rapidtide/"$subject"
+	rapidtide acompcor/xcp_d/"$subject"/ses-control/func/"$subject"_ses-control_task-rest_space-MNI152NLin2009cAsym_desc-denoisedSmoothed_bold.nii.gz rapidtide/"$subject"/"$subject" --searchrange -15 15
+done
