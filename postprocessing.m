@@ -11,11 +11,10 @@ parcellation_mask_whole=parcellation>0;
 parcellation_mask_left=parcellation>0 & parcellation <201; % first half is left hemisphere
 parcellation_mask_right=parcellation>200;
 parcellation_reduced=parcellation(parcellation_mask_whole>0);
-[network_names, colormap] = fetch_yeo_networks_metadata(7);
-schaefer_400 = fetch_parcellation('fsaverage5', 'schaefer', 400);
 [surf_lh, surf_rh] = load_conte69();
 labeling = load_parcellation('schaefer',400);
-
+[network_names, colormap] = fetch_yeo_networks_metadata(7);
+schaefer_400 = fetch_parcellation('fsaverage5', 'schaefer', 400);
 
 TR = 2;
 samplingRate = 1 / TR;
@@ -180,26 +179,6 @@ imagesc(mean(corrmats_corrected_reduced(:,:,1:num_control),3))
 figure
 imagesc(mean(corrmats_corrected_reduced(:,:,num_control+1:end),3))
 
-% Regress out the confounds - cancelled
-% confounds=[subjects.age subjects.gender subjects.handed];
-% for i=1:size(corrmats,1)
-%     for j=1:size(corrmats,1)
-%         [~,~,residuals] = regress(squeeze(corrmats_reduced(i,j,:)),[ones(size(confounds,1),1) confounds]);
-%         corrmats_reduced_clean(i,j,:)=residuals;
-%
-%
-%         [~,~,residuals] = regress(squeeze(corrmats_corrected_reduced(i,j,:)),[ones(size(confounds,1),1) confounds]);
-%         corrmats_corrected_reduced_clean(i,j,:)=residuals;
-%
-%     end
-% end
-% for i=1:size(subjects,1)
-%     for j=1:size(corrmats,1)
-%         corrmats_reduced_clean(j,j,i)=1;
-%         corrmats_corrected_reduced_clean(j,j,i)=1;
-%     end
-% end
-
 %% Diagnostics of lags: mean - variance values and aberrancy calculation
 % Variance and max values of lags
 
@@ -234,18 +213,17 @@ hold on;histogram(max((mean_lag(:,1:num_control)),[],2));histogram(max((mean_lag
 
 
 for i=1:400
-    [h,p,c,stats]=ttest2(mean_lag(i,1:num_control),mean_lag(i,num_control+1:end))
+    [h,p,c,stats]=ttest2(mean_lag(i,1:num_control),mean_lag(i,num_control+1:end));
     lag_ps(i)=p;
     lag_ts(i)=stats.tstat;
 end
 plot_hemispheres([mean(mean_lag(:,1:num_control),2) mean(mean_lag(:,num_control+1:end),2)], {surf_lh,surf_rh}, ...
     'parcellation',labeling.schaefer_400, 'labeltext',{'controls','Mean Lag-stroke'});
-
+lagc=mean(mean_lag(:,1:num_control),2);
+lags=mean(mean_lag(:,num_control+1:end),2);
 plot_hemispheres([lag_ts'], {surf_lh,surf_rh}, ...
     'parcellation',labeling.schaefer_400, 'labeltext',{'lag diff roi',});
 
-
-labeling = load_parcellation('schaefer',400);
 
 % Aberrancy
 mean_control=mean(corrmats_reduced(:,:,1:num_control),3);
@@ -267,63 +245,15 @@ mean_abr_stroke=mean_abr(num_control+1:end);
 
 mean_abr_control_corrected=mean_abr_cr(1:num_control);
 mean_abr_stroke_corrected=mean_abr_cr(num_control+1:end);
-hold on;histogram(mean_abr_stroke);histogram(mean_abr_control);hold off
+hold on;histogram(mean_abr_stroke,'Normalization','probability');histogram(mean_abr_control,'Normalization','probability');hold off
 figure
-hold on;histogram(mean_abr_stroke_corrected);histogram(mean_abr_control_corrected);hold off
+hold on;histogram(mean_abr_stroke_corrected,'Normalization','probability');histogram(mean_abr_control_corrected,'Normalization','probability');hold off
+
 [h,p,c,stats]=ttest2(mean_abr_control,mean_abr_stroke)
 [h,p,c,stats]=ttest2(mean_abr_control_corrected,mean_abr_stroke_corrected)
 
 %% Calculating the gradients: scaling them and retrieving explained variances
-% Gradients from mean matrices -- not used
-for i=2
-    [surf_lh, surf_rh] = load_conte69();
-    labeling = load_parcellation('schaefer',400);
-    conn_matrices = load_group_fc('schaefer',400);
-    reference_gradient = GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-    m = (conn_matrices.schaefer_400);
-    m=atanh(m);
-    m(isinf(m))=1;
-    reference_gradient = reference_gradient.fit(m);
 
-    plot_hemispheres(reference_gradient.gradients{1}(:,1:3), {surf_lh,surf_rh}, ...
-        'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', ' Gradient 3'});
-    gradient_in_euclidean([reference_gradient.gradients{1}(:,[1 2])] ,{surf_lh,surf_rh},labeling.schaefer_400);
-    scree_plot(reference_gradient.lambda{1});
-
-    m=mean(corrmats_reduced_clean(:,:,1:num_control),3);
-    before_correction=GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-    before_correction=before_correction.fit(m,'reference',reference_gradient.gradients{1});
-    plot_hemispheres(before_correction.aligned{1}(:,1:3), {surf_lh,surf_rh}, ...
-        'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-    gradient_in_euclidean(before_correction.aligned{1}(:,[1 2]),{surf_lh,surf_rh},labeling.schaefer_400);
-    scree_plot(before_correction.lambda{1});
-
-
-    m=mean(corrmats_corrected_reduced(:,:,1:num_control),3,"omitnan");
-    after_correction=GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-    after_correction=after_correction.fit(m,'reference',reference_gradient.gradients{1});
-    plot_hemispheres(after_correction.aligned{1}(:,1:3), {surf_lh,surf_rh}, ...
-        'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-    gradient_in_euclidean(after_correction.aligned{1}(:,[1 2]),{surf_lh,surf_rh},labeling.schaefer_400);
-    scree_plot(after_correction.lambda{1});
-
-    m=mean(corrmats_reduced(:,:,num_control+1:end),3,"omitnan");
-    before_correction=GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-    before_correction=before_correction.fit(m,'reference',reference_gradient.gradients{1});
-    plot_hemispheres(before_correction.aligned{1}(:,1:3), {surf_lh,surf_rh}, ...
-        'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-    gradient_in_euclidean(before_correction.aligned{1}(:,[1 2]),{surf_lh,surf_rh},labeling.schaefer_400);
-    scree_plot(before_correction.lambda{1});
-
-
-    m=mean(corrmats_corrected_reduced(:,:,num_control+1:end),3,"omitnan");
-    after_correction=GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-    after_correction=after_correction.fit(m,'reference',reference_gradient.gradients{1});
-    plot_hemispheres(after_correction.aligned{1}(:,1:3), {surf_lh,surf_rh}, ...
-        'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-    gradient_in_euclidean(after_correction.aligned{1}(:,[1 2]),{surf_lh,surf_rh},labeling.schaefer_400);
-    scree_plot(after_correction.lambda{1});
-end
 
 
 % Get the gradients for each subject
@@ -344,7 +274,7 @@ for i=1:size(corrmats_reduced,3)
     %     m(isinf(m))=1;
     m(isnan(m))=1;
     before_correction=GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-    before_correction=before_correction.fit(m,'reference',reference_gradient.gradients{1});
+    before_correction=before_correction.fit(m,'reference',reference_gradient.gradients{1},'sparsity',90);
     gradients_before{i}=before_correction;
     m=corrmats_corrected_reduced(:,:,i);
     m(isnan(m))=1;
@@ -361,29 +291,6 @@ for i=1:size(corrmats_reduced,3)
     after_lambda(:,i)=gradients_after{i}.lambda{1}./sum(gradients_after{i}.lambda{1});
 
 end
-% Rescale the gradients
-% for i=1:10
-%     for j=1:size(subjects,1)
-%         centered=before_aligned(:,i,j)-mean(before_aligned(:,i,j));
-%         before_scaled(:,i,j)=centered./std(centered);
-% 
-%         centered=after_aligned(:,i,j)-mean(after_aligned(:,i,j));
-%         after_scaled(:,i,j)=centered./std(centered);
-%     end
-% end
-
-% Clean the gradients
-% for i=1:10
-%     for j=1:400
-%         [B,BINT,R,RINT,STATS] =regress(squeeze(before_scaled(j,i,:)),[ones(130,1) subjects.age subjects.gender ]);
-%         before_residuals(j,i,:)=R;
-% 
-%         [B,BINT,R,RINT,STATS] =regress(squeeze(after_scaled(j,i,:)),[ones(130,1) subjects.age subjects.gender ]);
-%         after_residuals(j,i,:)=R;
-%     end
-% end
-% before_scaled=before_residuals;
-% after_scaled=after_residuals;
 %% Visualize the mean gradients, eigenvalues and network breakdowns
 mean_before_control=mean(before_aligned(:,:,1:num_control),3);
 mean_before_stroke=mean(before_aligned(:,:,num_control+1:end),3);
@@ -398,10 +305,7 @@ pretty(obj)
 
 obj=plot_hemispheres(mean_before_stroke(:,1:3), {surf_lh,surf_rh}, ...
     'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-obj.colormaps(slanCM('viridis'))
 
-plot_hemispheres(mean_after_control(:,1:3), {S,S2}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
 plot_hemispheres(mean_after_stroke(:,1:3), {surf_lh,surf_rh}, ...
     'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
 
@@ -435,36 +339,51 @@ for i=1:7
         network_means_stroke_before(i,j)=mean(mean_before_stroke(seven_network_positions==i,j));
         network_means_stroke_after(i,j)=mean(mean_after_stroke(seven_network_positions==i,j));
 
-        network_sd_control_before(i,j)=std(mean_before_control(seven_network_positions==i,j));
-        network_sd_control_after(i,j)=std(mean_after_control(seven_network_positions==i,j));
+        network_sd_control_before(i,j)=std(mean_before_control(seven_network_positions==i,j))/sqrt(sum(seven_network_positions==i));
+        network_sd_control_after(i,j)=std(mean_after_control(seven_network_positions==i,j))/sqrt(sum(seven_network_positions==i));
 
-        network_sd_stroke_before(i,j)=std(mean_before_stroke(seven_network_positions==i,j));
-        network_sd_stroke_after(i,j)=std(mean_after_stroke(seven_network_positions==i,j));
+        network_sd_stroke_before(i,j)=std(mean_before_stroke(seven_network_positions==i,j))/sqrt(sum(seven_network_positions==i));
+        network_sd_stroke_after(i,j)=std(mean_after_stroke(seven_network_positions==i,j))/sqrt(sum(seven_network_positions==i));
     end
 end
 
-% draw the network breakdown of the mean gradients
+% draw the network breakdown of the mean gradients 
 for j=1:3
-    figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean Gradient Score')
+    h=figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean Gradient Score')
     bar(network_means_control_before(:,j), 'FaceColor', 'flat', 'CData', colormap);
-     errorbar(1:numel(network_means_control_before(:,j)), network_means_control_before(:,j), network_sd_control_before(:,j), network_sd_control_before(:,j), ...
-         'Color', 'k', 'LineStyle', 'None');
+    ylim([-0.1 0.1])
+    errorbar(1:numel(network_means_control_before(:,j)), network_means_control_before(:,j), network_sd_control_before(:,j), network_sd_control_before(:,j), ...
+        'Color', 'k', 'LineStyle', 'None');
+    filename='/home/koba/Desktop/Stroke/figures/revision/GX_control_before.svg';
+    filename=strrep(filename,'X',num2str(j));
+    saveas(h,filename)
 
-    figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean Gradient Score')
+    h=figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean Gradient Score')
     bar(network_means_stroke_before(:,j), 'FaceColor', 'flat', 'CData', colormap);
+    ylim([-0.1 0.1])
     errorbar(1:numel(network_means_stroke_before(:,j)), network_means_stroke_before(:,j), network_sd_stroke_before(:,j), network_sd_stroke_before(:,j), ...
-         'Color', 'k', 'LineStyle', 'None');
+        'Color', 'k', 'LineStyle', 'None');
+    filename='/home/koba/Desktop/Stroke/figures/revision/GX_stroke_before.svg';
+    filename=strrep(filename,'X',num2str(j));
+    saveas(h,filename)
 
 
-    figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean Gradient Score')
+    h=figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean Gradient Score')
     bar(network_means_control_after(:,j), 'FaceColor', 'flat', 'CData', colormap);
     errorbar(1:numel(network_means_control_after(:,j)), network_means_control_after(:,j), network_sd_control_after(:,j), network_sd_control_after(:,j), ...
         'Color', 'k', 'LineStyle', 'None');
+    ylim([-0.1 0.1])
+    filename='/home/koba/Desktop/Stroke/figures/revision/GX_control_after.svg';
+    filename=strrep(filename,'X',num2str(j));
+    saveas(h,filename)
 
-    figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean Gradient Score')
+    h=figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean Gradient Score')
     bar(network_means_stroke_after(:,j), 'FaceColor', 'flat', 'CData', colormap);
     errorbar(1:numel(network_means_stroke_after(:,j)), network_means_stroke_after(:,j), network_sd_stroke_after(:,j), network_sd_stroke_after(:,j), ...
         'Color', 'k', 'LineStyle', 'None');
+    filename='/home/koba/Desktop/Stroke/figures/revision/GX_stroke_after.svg';
+    filename=strrep(filename,'X',num2str(j));
+    saveas(h,filename)
 
 end
 
@@ -479,6 +398,16 @@ scree_plot(mean(after_lambda(:,1:num_control),2))
 scree_plot(mean(after_lambda(:,num_control+1:end),2))
 
 %% ROI-based comparison of the gradient scores and comparison of lambdas 
+for i=1:max(parcellation)
+    for j=1:10
+        [b,bint,r] = regress(squeeze(before_aligned(i,j,:)),[ones(130,1) subjects.age subjects.gender subjects.handed]);
+        before_aligned_res(i,j,:)=r;
+
+        [b,bint,r] = regress(squeeze(after_aligned(i,j,:)),[ones(130,1) subjects.age subjects.gender subjects.handed]);
+        after_aligned_res(i,j,:)=r;
+    end
+end
+
 for i=1:size(corrmats,1)
     for j=1:10
         [h,p,c,stats]=ttest(squeeze(before_aligned(i,j,1:num_control)),squeeze(after_aligned(i,j,1:num_control)));
@@ -511,28 +440,8 @@ plot_hemispheres(fdr_mask(:,1:3), {surf_lh,surf_rh}, ...
 fdr_mask=(fdr_bh(stroke_p).*stroke_t);
 plot_hemispheres(fdr_mask(:,1:3), {surf_lh,surf_rh}, ...
     'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
- % With regressors of no interest
- for i=1:400
-     for  j=1:10
-         [B,BINT,R,RINT,STATS] = regress(squeeze(before_aligned(i,j,:)),[ones(130,1) subjects.subj_type subjects.age subjects.gender ]);
-         ps(i,j)=STATS(3);
-         bs(i,j)=B(2);
-
-         [B,BINT,R,RINT,STATS] = regress(squeeze(after_aligned(i,j,:)),[ones(130,1) subjects.subj_type subjects.age subjects.gender ]);
-         ps2(i,j)=STATS(3);
-         bs2(i,j)=B(2);
-     end
- end
-imagesc(fdr_bh(ps(:,1:3)).*bs(:,1:3))
-figure
-imagesc(fdr_bh(ps2(:,1:3)).*bs2(:,1:3))
-ax=(fdr_bh(ps(:,1:3)).*bs(:,1:3));
-ay=(fdr_bh(ps2(:,1:3)).*bs2(:,1:3));
-plot_hemispheres(ax(:,1:3), {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-plot_hemispheres(ay(:,1:3), {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-
+f1=fdr_bh(control_p).*control_t;
+f2=fdr_bh(stroke_p).*stroke_t;
 
 for i=1:10
     [h,p,c,stats]=ttest(before_lambda(i,1:num_control),after_lambda(i,1:num_control));
@@ -550,54 +459,8 @@ for i=1:10
     lambdas_controlXstroke_after(i,2)=stats.tstat;
 
 end
-
+fdr_bh(lambdas_stroke(1:3,1))
 %% Max distance to zero, 3D variance 
-
-% % Euclidian distance to zero 
-% % for i=1:max(parcellation)
-% %     for j=1:size(subjects,1)
-% %         ED_tozero_before(i,j)=norm(before_aligned(i,1:3,j));
-% %         ED_tozero_after(i,j)=norm(after_aligned(i,1:3,j));
-% %     end
-% % end
-% %  [h,p,c,stats]=ttest2(mean(ED_tozero_before(:,1:num_control),2),mean(ED_tozero_before(:,num_control+1:end),2))
-% %  [h,p,c,stats]=ttest2(mean(ED_tozero_after(:,1:num_control),2),mean(ED_tozero_after(:,num_control+1:end),2))
-% 
-% % for i=1:400 
-% %     [h,p,c,stats]=ttest2(ED_tozero_before(i,1:num_control),ED_tozero_before(i,num_control+1:end));
-% %     ps(i)=p;
-% %     ts(i)=stats.tstat;
-% % end
-% plot_hemispheres([mean(ED_tozero_before(:,1:num_control),2) mean(ED_tozero_before(:,num_control+1:end),2)], {surf_lh,surf_rh}, ...
-%     'parcellation',labeling.schaefer_400, 'labeltext',{'control','ED2zero - stroke'});
-% plot_hemispheres([mean(ED_tozero_after(:,1:num_control),2) mean(ED_tozero_after(:,num_control+1:end),2)], {surf_lh,surf_rh}, ...
-%     'parcellation',labeling.schaefer_400, 'labeltext',{'control','ED2zero - stroke'});
-% Distance to centroid
-% mean_x = mean(before_scaled(:,1,1:num_control),3);
-% mean_y = mean(before_scaled(:,2,1:num_control),3);
-% mean_z = mean(before_scaled(:,3,1:num_control),3);
-% variance_x = var(before_scaled(:,1,1:num_control),[],3);
-% variance_y = var(before_scaled(:,2,1:num_control),[],3);
-% variance_z = var(before_scaled(:,3,1:num_control),[],3);centroid = mean(mean(before_scaled(:,1:3,1:num_control),3));
-% distances = sqrt(sum((before_scaled(:,1,1:num_control) - centroid).^2, 2));
-% overall_variance = squeeze(mean(distances.^2));
-% 
-% mean_x = mean(before_scaled(:,1,num_control+1:end),3);
-% mean_y = mean(before_scaled(:,2,num_control+1:end),3);
-% mean_z = mean(before_scaled(:,3,num_control+1:end),3);
-% variance_x = var(before_scaled(:,1,num_control+1:end),[],3);
-% variance_y = var(before_scaled(:,2,num_control+1:end),[],3);
-% variance_z = var(before_scaled(:,3,num_control+1:end),[],3);centroid = mean(mean(before_scaled(:,1:3,num_control+1:end),3));
-% distances2 = sqrt(sum((before_scaled(:,1,num_control+1:end) - centroid).^2, 2));
-% overall_variance2 = squeeze(mean(distances2.^2));
-% [h,p,c,stats]=ttest2(overall_variance,overall_variance2)
-% for i=1:400 
-%     [h,p,c,stats]=ttest2(squeeze(distances(i,1,:)),squeeze(distances2(i,1,:)));
-%     ps(i)=p;
-%     ts(i)=stats.tstat;
-% end
-% 
-% sum(fdr_bh(ps))
 
 % ED to control in 3D 
 for i=1:max(parcellation)
@@ -607,52 +470,83 @@ for i=1:max(parcellation)
     end
 end
 
+for i=1:max(parcellation)
+   [b,bint,r] = regress(EDtocontrol_before(i,:)',[ones(130,1) subjects.age subjects.gender subjects.handed]);
+   edfunc3d_residuals_before(i,:)=r;
+
+   [b,bint,r] = regress(EDtocontrol_after(i,:)',[ones(130,1) subjects.age subjects.gender subjects.handed]);
+   edfunc3d_residuals_after(i,:)=r;
+end
+
 [h,p,c,stats]=ttest2(mean(EDtocontrol_before(:,1:num_control),2),mean(EDtocontrol_before(:,num_control+1:end),2))
+[h,p,c,stats]=ttest2(mean(edfunc3d_residuals_before(:,1:num_control),2),mean(edfunc3d_residuals_before(:,num_control+1:end),2))
 
 [h,p,c,stats]=ttest2(mean(EDtocontrol_after(:,1:num_control),2),mean(EDtocontrol_after(:,num_control+1:end),2))
+[h,p,c,stats]=ttest2(mean(edfunc3d_residuals_after(:,1:num_control),2),mean(edfunc3d_residuals_after(:,num_control+1:end),2))
+
+
 hold on;histogram(mean(EDtocontrol_before(:,1:num_control),2));histogram(mean(EDtocontrol_before(:,num_control+1:end),2));hold off
 figure
 hold on;histogram(mean(EDtocontrol_after(:,1:num_control),2));histogram(mean(EDtocontrol_after(:,num_control+1:end),2));hold off
-xlabel('ED func')
+xlabel('Mean ED_f_u_n_c across whole brain')
 ylabel('Frequency')
 legend('Control','Stroke')
 dif1=mean(EDtocontrol_before(:,1:num_control),2)-mean(EDtocontrol_before(:,num_control+1:end),2);
 dif2=mean(EDtocontrol_after(:,1:num_control),2)-mean(EDtocontrol_after(:,num_control+1:end),2);
-[h,p,c,stats]=ttest(dif1-dif2)
+[h,p,c,stats]=ttest2(dif1,dif2)
 
-% dif1=mean(ED_tozero_before(:,1:num_control),2)-mean(ED_tozero_before(:,num_control+1:end),2);
-% dif2=mean(ED_tozero_after(:,1:num_control),2)-mean(ED_tozero_after(:,num_control+1:end),2);
-% [h,p,c,stats]=ttest(dif1-dif2)
 
-plot_hemispheres([mean(EDtocontrol_before(:,1:num_control),2) mean(EDtocontrol_before(:,num_control+1:end),2) dif1.*(dif1<-0.01)], {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'control','stroke', 'ED2control - diff.'});
 
-% for i=1:400 not used-ROI-based
-%     [h,p,c,stats]=ttest2(EDtocontrol_before(i,1:num_control),EDtocontrol_before(i,num_control+1:end));
-%     ps(i)=p;
-%     ts(i)=stats.tstat;
-% end
 
-dd=(dif1);
-for i=1:7
-        network_means_EDtocontrol_before(i)=mean(dd(seven_network_positions==i));
-%         network_means_EDtocontrol_after(i)=mean(EDtocontrol_after(seven_network_positions==i));
+subjects.lesion_side==0
+dif1=mean(EDtocontrol_before(:,1:num_control),2)-mean(EDtocontrol_before(:,num_control+1:end),2);
+dif2=mean(EDtocontrol_after(:,1:num_control),2)-mean(EDtocontrol_after(:,num_control+1:end),2);
 
-        network_sd_EDtocontrol_before(i)=std(dd(seven_network_positions==i));
-%         network_sd_EDtocontrol_after(i)=std(EDtocontrol_after(seven_network_positions==i));
+for i=1:10000
+    ed_shuffled1=EDtocontrol_before(:,randperm(length(1:130)));
+    ed_shuffled2=EDtocontrol_after(:,randperm(length(1:130)));
+    shuffled_dif1(:,i)=mean(ed_shuffled1(:,1:num_control),2)-mean(ed_shuffled1(:,num_control+1:end),2);
+    shuffled_dif2(:,i)=mean(ed_shuffled1(:,1:num_control),2)-mean(ed_shuffled2(:,num_control+1:end),2);
+
+end
+for i=1:400
+    corrected1(i)=(abs(dif1(i)))>prctile(abs(shuffled_dif1(i,:)),95);
+    corrected2(i)=(abs(dif2(i)))>prctile(abs(shuffled_dif2(i,:)),95);
+
+end
+plot_hemispheres([mean(EDtocontrol_before(:,1:num_control),2) mean(EDtocontrol_before(:,num_control+1:end),2) corrected1'.*dif1 corrected2'.*dif2], {surf_lh,surf_rh}, ...
+    'parcellation',labeling.schaefer_400);
+
+for i=1:400
+    [h,p,c,stats]=ttest2(EDtocontrol_before(i,1:num_control),EDtocontrol_before(i,num_control+1:end));
+    ps(i)=p;
+    ts(i)=stats.tstat;
 end
 
-figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean ED to control - before')
-    bar(network_means_EDtocontrol_before, 'FaceColor', 'flat', 'CData', colormap);
-     errorbar(1:numel(network_means_EDtocontrol_before), network_means_EDtocontrol_before, network_sd_EDtocontrol_before, network_sd_EDtocontrol_before, ...
-         'Color', 'k', 'LineStyle', 'None');
+dd=(corrected1'.*dif1).*-1;
+dd2=(corrected2'.*dif2).*-1;
 
-     figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean ED to control - after')
-    bar(network_means_EDtocontrol_after, 'FaceColor', 'flat', 'CData', colormap);
-     errorbar(1:numel(network_means_EDtocontrol_after), network_means_EDtocontrol_after, network_sd_EDtocontrol_after, network_sd_EDtocontrol_after, ...
-         'Color', 'k', 'LineStyle', 'None');
 
- 
+
+for i=1:7
+    network_means_EDtocontrol_before(i)=mean(dd(seven_network_positions==i));
+    network_means_EDtocontrol_after(i)=mean(dd2(seven_network_positions==i));
+
+    network_sd_EDtocontrol_before(i)=std(EDtocontrol_before(seven_network_positions==i))/sqrt(sum(seven_network_positions==i));
+    network_sd_EDtocontrol_after(i)=std(EDtocontrol_after(seven_network_positions==i))/sqrt(sum(seven_network_positions==i));
+end
+
+figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean ED_f_u_n_c difference')
+bar(network_means_EDtocontrol_before, 'FaceColor', 'flat', 'CData', colormap);
+errorbar(1:numel(network_means_EDtocontrol_before), network_means_EDtocontrol_before, network_sd_EDtocontrol_before, network_sd_EDtocontrol_before, ...
+    'Color', 'k', 'LineStyle', 'None');
+
+figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean ED_f_u_n_c difference')
+bar(network_means_EDtocontrol_after, 'FaceColor', 'flat', 'CData', colormap);
+errorbar(1:numel(network_means_EDtocontrol_after), network_means_EDtocontrol_after, network_sd_EDtocontrol_after, network_sd_EDtocontrol_after, ...
+    'Color', 'k', 'LineStyle', 'None');
+
+
 
 % Do it for the gradients seperately
 
@@ -681,57 +575,92 @@ dif11=mean(EDtocontrol_before_sep(:,1:num_control,1),2)-mean(EDtocontrol_before_
 dif12=mean(EDtocontrol_before_sep(:,1:num_control,2),2)-mean(EDtocontrol_before_sep(:,num_control+1:end,2),2)
 dif13=mean(EDtocontrol_before_sep(:,1:num_control,3),2)-mean(EDtocontrol_before_sep(:,num_control+1:end,3),2)
 
-plot_hemispheres([dif11 dif12.*(dif12<-0.006) dif13], {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Dif 1st ','Dif 2nd', 'Dif3rd'});
-gradient_in_euclidean(squeeze(mean(EDtocontrol_before_sep(:,1:num_control,1:3),2)) ,{surf_lh,surf_rh},labeling.schaefer_400)
-gradient_in_euclidean(squeeze(mean(EDtocontrol_before_sep(:,num_control+1:end,1:3),2)) ,{surf_lh,surf_rh},labeling.schaefer_400)
-gradient_in_euclidean(squeeze(mean(EDtocontrol_after_sep(:,1:num_control,1:2),2)) ,{surf_lh,surf_rh},labeling.schaefer_400)
-gradient_in_euclidean(squeeze(mean(EDtocontrol_after_sep(:,num_control+1:end,1:2),2)) ,{surf_lh,surf_rh},labeling.schaefer_400)
-
-% 
-% [h,p,c,stats]=ttest2(mean(EDtozero_before_sep(:,1:num_control,1),2),mean(EDtozero_before_sep(:,num_control+1:end,1),2))
-% [h,p,c,stats]=ttest2(mean(EDtozero_before_sep(:,1:num_control,2),2),mean(EDtozero_before_sep(:,num_control+1:end,2),2))
-% [h,p,c,stats]=ttest2(mean(EDtozero_before_sep(:,1:num_control,3),2),mean(EDtozero_before_sep(:,num_control+1:end,3),2))
-% 
-% 
-% [h,p,c,stats]=ttest2(mean(EDtozero_after_sep(:,1:num_control,1),2),mean(EDtozero_after_sep(:,num_control+1:end,1),2))
-% [h,p,c,stats]=ttest2(mean(EDtozero_after_sep(:,1:num_control,2),2),mean(EDtozero_after_sep(:,num_control+1:end,2),2))
-% [h,p,c,stats]=ttest2(mean(EDtozero_after_sep(:,1:num_control,3),2),mean(EDtozero_after_sep(:,num_control+1:end,3),2))
-% 
-% dif11=mean(EDtozero_before_sep(:,1:num_control,1),2)-mean(EDtozero_before_sep(:,num_control+1:end,1),2)
-% dif12=mean(EDtozero_before_sep(:,1:num_control,2),2)-mean(EDtozero_before_sep(:,num_control+1:end,2),2)
-% dif13=mean(EDtozero_before_sep(:,1:num_control,3),2)-mean(EDtozero_before_sep(:,num_control+1:end,3),2)
-% % 
-% plot_hemispheres([dif11 dif12 dif13], {surf_lh,surf_rh}, ...
-%     'parcellation',labeling.schaefer_400, 'labeltext',{'Dif 1st ','Dif 2nd', 'Dif3rd'});
-% gradient_in_euclidean(squeeze(mean(EDtozero_before_sep(:,1:num_control,1:2),2)) ,{surf_lh,surf_rh},labeling.schaefer_400)
-% gradient_in_euclidean(squeeze(mean(EDtozero_before_sep(:,num_control+1:end,1:2),2)) ,{surf_lh,surf_rh},labeling.schaefer_400)
-% gradient_in_euclidean(squeeze(mean(EDtozero_after_sep(:,1:num_control,1:2),2)) ,{surf_lh,surf_rh},labeling.schaefer_400)
-% gradient_in_euclidean(squeeze(mean(EDtozero_after_sep(:,num_control+1:end,1:2),2)) ,{surf_lh,surf_rh},labeling.schaefer_400)
-
-
 dif21=mean(EDtocontrol_after_sep(:,1:num_control,1),2)-mean(EDtocontrol_after_sep(:,num_control+1:end,1),2);
 dif22=mean(EDtocontrol_after_sep(:,1:num_control,2),2)-mean(EDtocontrol_after_sep(:,num_control+1:end,2),2);
 dif23=mean(EDtocontrol_after_sep(:,1:num_control,3),2)-mean(EDtocontrol_after_sep(:,num_control+1:end,3),2);
 plot_hemispheres([dif21 dif22 dif23], {surf_lh,surf_rh}, ...
     'parcellation',labeling.schaefer_400, 'labeltext',{'Dif 1st ','Dif 2nd', 'Dif3rd'});
 
-[h,p,c,stats]=ttest(dif11-dif21)
-[h,p,c,stats]=ttest(dif12-dif22)
-[h,p,c,stats]=ttest(dif13-dif23)
+for i=1:1000
+ed_shuffled=EDtocontrol_before(:,randperm(length(1:130)));
 
-% plot_hemispheres([dif11-dif21 dif12-dif22 dif13-dif23], {surf_lh,surf_rh}, ...
-%     'parcellation',labeling.schaefer_400, 'labeltext',{'Dif 1st ','Dif 2nd', 'Dif3rd'});
-% 
-% dif21=mean(EDtozero_after_sep(:,1:num_control,1),2)-mean(EDtozero_after_sep(:,num_control+1:end,1),2);
-% dif22=mean(EDtozero_after_sep(:,1:num_control,2),2)-mean(EDtozero_after_sep(:,num_control+1:end,2),2);
-% dif23=mean(EDtozero_after_sep(:,1:num_control,3),2)-mean(EDtozero_after_sep(:,num_control+1:end,3),2);
+shuffled_dif(:,i)=mean(ed_shuffled(:,1:num_control),2)-mean(ed_shuffled(:,num_control+1:end),2);
+end
+for i=1:400
+    corrected(i)=(abs(dif11(i)))>prctile(abs(shuffled_dif(i,:)),95);
+end
+ 
+plot_hemispheres([dif11 dif12 dif13], {surf_lh,surf_rh}, ...
+    'parcellation',labeling.schaefer_400, 'labeltext',{'Dif 1st ','Dif 2nd', 'Dif3rd'});
 
+
+for i=1:10000
+    ed_shuffled1_bef=EDtocontrol_before_sep(:,randperm(length(1:130)),1);
+    shuffled_dif1_bef(:,i)=mean(ed_shuffled1_bef(:,1:num_control),2)-mean(ed_shuffled1_bef(:,num_control+1:end),2);
+
+    ed_shuffled2_bef=EDtocontrol_before_sep(:,randperm(length(1:130)),2);
+    shuffled_dif2_bef(:,i)=mean(ed_shuffled2_bef(:,1:num_control),2)-mean(ed_shuffled2_bef(:,num_control+1:end),2);
+
+    ed_shuffled3_bef=EDtocontrol_before_sep(:,randperm(length(1:130)),3);
+    shuffled_dif3_bef(:,i)=mean(ed_shuffled3_bef(:,1:num_control),2)-mean(ed_shuffled3_bef(:,num_control+1:end),2);
+
+    ed_shuffled1_after=EDtocontrol_after_sep(:,randperm(length(1:130)),1);
+    shuffled_dif1_after(:,i)=mean(ed_shuffled1_after(:,1:num_control),2)-mean(ed_shuffled1_after(:,num_control+1:end),2);
+
+    ed_shuffled2_after=EDtocontrol_after_sep(:,randperm(length(1:130)),2);
+    shuffled_dif2_after(:,i)=mean(ed_shuffled2_bef(:,1:num_control),2)-mean(ed_shuffled2_after(:,num_control+1:end),2);
+
+    ed_shuffled3_after=EDtocontrol_after_sep(:,randperm(length(1:130)),3);
+    shuffled_dif3_after(:,i)=mean(ed_shuffled3_after(:,1:num_control),2)-mean(ed_shuffled3_after(:,num_control+1:end),2);
+
+end
+for i=1:400
+    corrected1_bef(i)=(abs(dif11(i)))>prctile(abs(shuffled_dif1_bef(i,:)),95);
+    corrected2_bef(i)=(abs(dif12(i)))>prctile(abs(shuffled_dif2_bef(i,:)),95);
+    corrected3_bef(i)=(abs(dif13(i)))>prctile(abs(shuffled_dif3_bef(i,:)),95);
+
+    corrected1_after(i)=(abs(dif21(i)))>prctile(abs(shuffled_dif1_after(i,:)),95);
+    corrected2_after(i)=(abs(dif22(i)))>prctile(abs(shuffled_dif2_after(i,:)),95);
+    corrected3_after(i)=(abs(dif23(i)))>prctile(abs(shuffled_dif3_after(i,:)),95);
+end
+plot_hemispheres([corrected1_bef'.*dif11 corrected2_bef'.*dif12 corrected3_bef'.*dif13], {surf_lh,surf_rh}, ...
+    'parcellation',labeling.schaefer_400, 'labeltext',{'Dif 1st ','Dif 2nd', 'Dif3rd'});
+plot_hemispheres([corrected1_after'.*dif21 corrected2_after'.*dif22 corrected3_after'.*dif23], {surf_lh,surf_rh}, ...
+    'parcellation',labeling.schaefer_400, 'labeltext',{'Dif 1st ','Dif 2nd', 'Dif3rd'});
+g11=corrected1_bef'.*dif11;
+g12=corrected2_bef'.*dif12;
+g13=corrected3_bef'.*dif13;
+g21=corrected1_after'.*dif21;
+g22=corrected2_after'.*dif22;
+g23=corrected3_after'.*dif23;
+
+dd=g23*-1;
+for i=1:7
+        network_means_EDtocontrol_before(i)=mean(dd(seven_network_positions==i));
+%         network_means_EDtocontrol_after(i)=mean(EDtocontrol_after(seven_network_positions==i));
+
+        network_sd_EDtocontrol_before(i)=std(dd(seven_network_positions==i))/sqrt(sum(seven_network_positions==i));
+%         network_sd_EDtocontrol_after(i)=std(EDtocontrol_after(seven_network_positions==i));
+end
+
+figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean ED to control - before')
+    bar(network_means_EDtocontrol_before, 'FaceColor', 'flat', 'CData', colormap);
+     errorbar(1:numel(network_means_EDtocontrol_before), network_means_EDtocontrol_before, network_sd_EDtocontrol_before, network_sd_EDtocontrol_before, ...
+         'Color', 'k', 'LineStyle', 'None');
+
+
+
+
+[h,p,c,stats]=ttest2(dif11,dif21)
+[h,p,c,stats]=ttest2(dif12,dif22)
+[h,p,c,stats]=ttest2(dif13,dif23)
 
 %% Correlation between difs, gradients, lags
 
 % Corr with mean lag and gradients
-corr(mean(mean_lag(:,1:num_control),2),mean(squeeze(before_aligned(:,3,:)),2)) % 1: 0.25 2: 0.7 3: 0.19
+[rho,p1] = corr(mean(mean_lag(:,1:num_control),2),mean(squeeze(before_aligned(:,1,:)),2)) % 1: 0.25 2: 0.7 3: 0.19
+[rho,p2] = corr(mean(mean_lag(:,1:num_control),2),mean(squeeze(before_aligned(:,2,:)),2)) % 1: 0.25 2: 0.7 3: 0.19
+[rho,p3] = corr(mean(mean_lag(:,1:num_control),2),mean(squeeze(before_aligned(:,3,:)),2)) % 1: 0.25 2: 0.7 3: 0.19
 
 
 
@@ -741,8 +670,8 @@ corr(mean(mean_lag(:,1:num_control),2),mean(squeeze(before_aligned(:,3,:)),2)) %
 lag_diff=mean(mean_lag(:,1:num_control),2)-mean_lag;
 % corr(mean(mean_lag,2),mean(squeeze(after_aligned(:,2,1:num_control)),2))
 % corr(mean(mean_lag,2),mean(squeeze(after_aligned(:,2,num_control+1:end)),2))
-corr(mean(lag_diff(:,1:num_control),2),mean(EDtocontrol_before(:,1:num_control),2))
-corr((lag_diff(:,num_control+1:end))',(EDtocontrol_before(:,num_control+1:end))')
+[rho,p1] = corr(mean(lag_diff(:,1:num_control),2),mean(EDtocontrol_before(:,1:num_control),2))
+[rho,p1] = corr(mean(lag_diff(:,num_control+1:end),2),mean(EDtocontrol_before(:,num_control+1:end),2))
 corr(mean(lag_diff(:,1:num_control),2),mean(EDtocontrol_after(:,1:num_control),2))
 corr(mean(lag_diff(:,num_control+1:end),2),mean(EDtocontrol_after(:,num_control+1:end),2)) % lag diff is higher for stroke 
 for i=1:130
@@ -752,7 +681,7 @@ for i=1:130
     corrs(i,3)=corr(lag_diff(:,i),EDtocontrol_before(:,i))
     corrs(i,4)=corr(lag_diff(:,i),EDtocontrol_after(:,i))
 end
-
+[h,p,c,stats]=ttest2(corrs(1:num_control,4),corrs(num_control+1:end,4))
 % for i=1:130
 %     corrs(i,1)=corr(lag_diff(:,i),before_aligned(:,1,i))
 %     corrs(i,2)=corr(lag_diff(:,i),after_aligned(:,1,i))
@@ -760,26 +689,67 @@ end
 %     corrs(i,3)=corr(lag_diff(:,i),before_aligned(:,2,i))
 %     corrs(i,4)=corr(lag_diff(:,i),after_aligned(:,2,i))
 % end
-% 
-% ix=~isnan(subjects.nihss_hospital);
-% [bb(:,1) bb(:,2)]=corr(EDtocontrol_before(:,ix)',subjects.nihss_hospital(ix));
-% [bc(:,1) bc(:,2)]=corr(EDtocontrol_after(:,ix)',subjects.nihss_hospital(ix));
-% % dd=corr((lag_diff(:,ix))',subjects.nihss_hospital(ix));
-% plot_hemispheres([mean(lag_diff(:,num_control+1:end),2) mean(EDtocontrol_before(:,num_control+1:end),2)], {surf_lh,surf_rh}, ...
-% 'parcellation',labeling.schaefer_400, 'labeltext',{'2controlb','2controla'});
+control_beh=behavioral.bigfactor3(1:num_control);
+stroke_beh=behavioral.bigfactor3(num_control+1:end);
+control_beh_nonan=control_beh(~isnan(control_beh));
+stroke_beh_nonan=stroke_beh(~isnan(stroke_beh));
 
-% Ed func with behaviorals
-ix=~isnan(behavioral.motorl_f);
-ix=ix+[zeros(num_control,1);ones(num_stroke,1)];
-% ix=ix+[ones(num_control,1);zeros(num_stroke,1);];
 
-% ix=ix+(subjects.lesion_side==1);
+[h,p,c,stats]=ttest2(control_beh_nonan,stroke_beh_nonan)
+
+[h,p,c,stats]=ttest((stroke_beh_nonan-mean(control_beh_nonan))/std(control_beh_nonan))
+
+ix=~isnan(subjects.nihss_hospital);
+[bb(:,1) bb(:,2)]=corr(EDtocontrol_before(:,ix)',subjects.nihss_hospital(ix));
+[bc(:,1) bc(:,2)]=corr(EDtocontrol_after(:,ix)',subjects.nihss_hospital(ix));
+% dd=corr((lag_diff(:,ix))',subjects.nihss_hospital(ix));
+plot_hemispheres([bb(:,1).*(bb(:,2)<0.05) bc(:,1).*(bc(:,2)<0.05)], {surf_lh,surf_rh}, ...
+'parcellation',labeling.schaefer_400, 'labeltext',{'2controlb','2controla'});
+
+% Ed func with behaviorals -- calculate the difference between groups
+ix=~isnan(behavioral.bigfactor2);
+ ix=ix+[zeros(num_control,1);ones(num_stroke,1)];
+%  ix=ix+[ones(num_control,1);zeros(num_stroke,1);];
+%  ix=ix+(subjects.lesion_side==1);
 ix=ix==2;
 sum(ix)
-[bb(:,1) bb(:,2)]=corr(EDtocontrol_before(:,ix)',behavioral.motorl_f(ix));
-[bc(:,1) bc(:,2)]=corr(EDtocontrol_after(:,ix)',behavioral.motorl_f(ix));
-plot_hemispheres([bb(:,1).*(bb(:,2)<0.01) bc(:,1).*(bc(:,2)<0.01) ], {surf_lh,surf_rh}, ...
+[bb(:,1) bb(:,2)]=corr(EDtocontrol_before(:,ix)',behavioral.bigfactor2(ix));
+[bc(:,1) bc(:,2)]=corr(EDtocontrol_after(:,ix)',behavioral.bigfactor2(ix));
+% bbsig=bb(:,1).*((bb(:,2)<0.05));
+% bcsig=bc(:,1).*((bc(:,2)<0.05));
+bbsig=bb(:,1).*fdr_bh(bb(:,2));
+bcsig=bc(:,1).*fdr_bh(bc(:,2));
+plot_hemispheres([bbsig bcsig ], {surf_lh,surf_rh}, ...
     'parcellation',labeling.schaefer_400);
+sum((abs(bbsig)>0))
+sum((abs(bcsig)>0))
+[h,p,c,stats]=ttest2(bbsig(abs(bbsig)>0),bcsig(abs(bcsig)>0))
+% Difference between groups or hemispheres
+[h,p,c,stats]=ttest2((atanh(bb(subjects.lesion_side(ix)==1))),(atanh(bb(subjects.lesion_side(ix)==0))))
+% mean(abs(atanh(bb(subjects.subj_type(ix)==1))))
+% mean(abs(atanh(bb(subjects.subj_type(ix)==0))))
+beh2_before_fdr=bbsig;
+beh2_after_fdr=bcsig;
+
+
+dd=bbsig.*-1;
+ee=bcsig.*-1;
+for i=1:7
+        network_means_EDtocontrol_before(i)=mean(dd(seven_network_positions==i));
+      network_means_EDtocontrol_after(i)=mean(ee(seven_network_positions==i));
+
+        network_sd_EDtocontrol_before(i)=std(dd(seven_network_positions==i))/sqrt(sum(seven_network_positions==i));
+      network_sd_EDtocontrol_after(i)=std(ee(seven_network_positions==i))/sqrt(sum(seven_network_positions==i));
+end
+
+figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean correlation')
+    bar(network_means_EDtocontrol_before, 'FaceColor', 'flat', 'CData', colormap);
+     errorbar(1:numel(network_means_EDtocontrol_before), network_means_EDtocontrol_before, network_sd_EDtocontrol_before, network_sd_EDtocontrol_before, ...
+         'Color', 'k', 'LineStyle', 'None');
+figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean correlation')
+    bar(network_means_EDtocontrol_after, 'FaceColor', 'flat', 'CData', colormap);
+     errorbar(1:numel(network_means_EDtocontrol_after), network_means_EDtocontrol_after, network_sd_EDtocontrol_after, network_sd_EDtocontrol_after, ...
+         'Color', 'k', 'LineStyle', 'None');
 
 
 % Lag with behaviorals
@@ -789,33 +759,35 @@ ix=ix+[zeros(num_control,1);ones(num_stroke,1)];
 % ix=ix+(subjects.lesion_side==1);
 ix=ix==2;
 sum(ix)
-[dd(:,1) dd(:,2)]=corr((mean_lag(:,ix))',behavioral.language_f(ix));
+[dd(:,1) dd(:,2)]=corr((lag_diff(:,ix))',behavioral.language_f(ix));
 ix=~isnan(behavioral.motorl_f);
 ix=ix+[zeros(num_control,1);ones(num_stroke,1)];
 % ix=ix+[ones(num_control,1);zeros(num_stroke,1);];
 % ix=ix+(subjects.lesion_side==1);
 ix=ix==2;
 sum(ix)
-[dc(:,1) dc(:,2)]=corr((mean_lag(:,ix))',behavioral.motorl_f(ix));
+[dc(:,1) dc(:,2)]=corr((lag_diff(:,ix))',behavioral.motorl_f(ix));
 ix=~isnan(behavioral.motorr_f);
 ix=ix+[zeros(num_control,1);ones(num_stroke,1)];
 % ix=ix+[ones(num_control,1);zeros(num_stroke,1);];
 % ix=ix+(subjects.lesion_side==1);
 ix=ix==2;
 sum(ix)
-[de(:,1) de(:,2)]=corr((mean_lag(:,ix))',behavioral.motorr_f(ix));
+[de(:,1) de(:,2)]=corr((lag_diff(:,ix))',behavioral.motorr_f(ix));
 
-plot_hemispheres([dd(:,1).*(dd(:,2)<0.05) dc(:,1).*(dc(:,2)<0.05) de(:,1).*(de(:,2)<0.05)], {surf_lh,surf_rh}, ...
+ix=~isnan(subjects.nihss_hospital);
+[df(:,1) df(:,2)]=corr((lag_diff(:,ix))',subjects.nihss_hospital(ix));
+plot_hemispheres([dd(:,1).*(dd(:,2)<0.05) dc(:,1).*(dc(:,2)<0.05) de(:,1).*(de(:,2)<0.05) df(:,1).*(df(:,2)<0.05)], {surf_lh,surf_rh}, ...
     'parcellation',labeling.schaefer_400);
 
 
 
 
 
-% 
-% [correlation, feature] = meta_analytic_decoder(parcel2full(abs(bb(:,1).*(bb(:,2)<0.05)), schaefer_400), ...
-%     'template', 'fsaverage5');
-% wc = wordcloud(feature(correlation>0), correlation(correlation>0));
+
+[correlation, feature] = meta_analytic_decoder(parcel2full(double(bbsig<0), schaefer_400), ...
+    'template', 'fsaverage5');
+wc = wordcloud(feature(correlation>0), correlation(correlation>0));
 
 
 
@@ -828,30 +800,6 @@ mask_coords=table2array(readtable('/media/koba/MULTIBOOT/net/ascratch/people/plg
 
 masklist=readtable('/media/koba/MULTIBOOT/net/ascratch/people/plgkoba/stroke_BIDS_firs_sessions/derivatives/masklist.txt','ReadVariableNames', false); % load the subjects list that have masks 
 
-% Create distance files in nifti
-% for i=1:size(masklist,1)
-% 
-%    lesion_mask_str='distance2lesion/SUBID_lesion_coords.txt';
-%    splt=split(masklist{i,2},'_');
-%    lesion_mask_str=string(strrep(lesion_mask_str,'SUBID',splt(1)));
-%    lesion_mask=table2array(readtable(lesion_mask_str),'ReadVariableNames', false); % load the lesion mask of the subject 
-%    tosave_str='distance2lesion/SUBID_distance2lesion.txt';
-% 
-%    sub_distance=mask_coords;
-% 
-%    for j=1:size(sub_distance,1) 
-%        current_coor=sub_distance(j,1:3); % go over each voxel of the template 
-%        for k=1:size(lesion_mask,1)
-%            distances2lesion(k)=norm(current_coor-lesion_mask(k,1:3));
-%        end
-%        sub_distance(j,4)=min(distances2lesion);
-%        sub_distance(j,1)=sub_distance(j,1)*-1;
-%        sub_distance(j,2)=sub_distance(j,2)*-1;
-%        clear distances2lesion
-%    end
-%     writematrix(sub_distance,string(strrep(tosave_str,'SUBID',splt(1))), 'delimiter', ' ')
-% end
-%        
     
 % Load the distance 2 lesion info
 distance2lesion=load_nii('/media/koba/MULTIBOOT/net/ascratch/people/plgkoba/stroke_BIDS_firs_sessions/derivatives/distance2lesion/all_distances.nii.gz');
@@ -896,14 +844,38 @@ end
 [h,p,c,stats]=ttest(atanh(within_sub_corrs_before)-atanh(within_sub_corrs_after))
 mean(within_sub_corrs_after)
 hold on;histogram(within_sub_corrs_before);histogram(within_sub_corrs_after);hold off
-
+% ix=subjects_subset.lesion_site==6;
 for i=1:400
-    between_sub_corrs_before(i)=corr(ED_func_before(i,:)',ED_anat(i,:)');
-    between_sub_corrs_after(i)=corr(ED_func_after(i,:)',ED_anat(i,:)');
-    between_sub_corrs_lag(i)=corr(lag_diff_subset(i,:)',ED_anat(i,:)');
+    [between_sub_corrs_before(i,1) between_sub_corrs_before(i,2)]=corr(ED_func_before(i,num_control+1:end)',ED_anat(i,num_control+1:end)');
+    [between_sub_corrs_after(i,1) between_sub_corrs_after(i,2)]=corr(ED_func_after(i,num_control+1:end)',ED_anat(i,num_control+1:end)');
+    [between_sub_corrs_lag(i,1) between_sub_corrs_lag(i,2)]=corr(lag_diff_subset(i,num_control+1:end)',ED_anat(i,num_control+1:end)');
 end
-plot_hemispheres([between_sub_corrs_before' between_sub_corrs_after' between_sub_corrs_lag'], {surf_lh,surf_rh}, ...
+anat_before=between_sub_corrs_before(:,1).*(between_sub_corrs_before(:,2)<0.05)
+anat_after=between_sub_corrs_after(:,1).*(between_sub_corrs_after(:,2)<0.05)
+
+plot_hemispheres([ anat_before anat_after ((between_sub_corrs_after(:,2))) between_sub_corrs_lag(:,1).*(between_sub_corrs_lag(:,2)<0.05)], {surf_lh,surf_rh}, ...
 'parcellation',labeling.schaefer_400);
+
+bf4=between_sub_corrs_before(:,1).*((between_sub_corrs_before(:,2)<0.05))
+dd=anat_before.*-1;
+ee=anat_after.*-1;
+for i=1:7
+        network_means_EDtocontrol_before(i)=mean(dd(seven_network_positions==i));
+         network_means_EDtocontrol_after(i)=mean(ee(seven_network_positions==i));
+
+        network_sd_EDtocontrol_before(i)=std(dd(seven_network_positions==i))/sqrt(sum(seven_network_positions==i));
+         network_sd_EDtocontrol_after(i)=std(ee(seven_network_positions==i))/sqrt(sum(seven_network_positions==i));
+end
+
+figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean correlation')
+    bar(network_means_EDtocontrol_before, 'FaceColor', 'flat', 'CData', colormap);
+     errorbar(1:numel(network_means_EDtocontrol_before), network_means_EDtocontrol_before, network_sd_EDtocontrol_before, network_sd_EDtocontrol_before, ...
+         'Color', 'k', 'LineStyle', 'None');
+
+figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean correlation')
+    bar(network_means_EDtocontrol_after, 'FaceColor', 'flat', 'CData', colormap);
+     errorbar(1:numel(network_means_EDtocontrol_after), network_means_EDtocontrol_after, network_sd_EDtocontrol_after, network_sd_EDtocontrol_after, ...
+         'Color', 'k', 'LineStyle', 'None');
 
 corr(mean(ED_func_before(:,1:num_control),2),mean(ED_anat(:,1:num_control),2))
 corr(mean(ED_func_before(:,num_control+1:end),2),mean(ED_anat(:,num_control+1:end),2))
@@ -922,542 +894,160 @@ corr(mean(lag_diff(:,num_control+1:end),2),mean(EDtocontrol_after(:,num_control+
     corrs(i,4)=corr(lag_diff(:,i),ED_func_after(:,i))
 end
 
-% ix=~isnan(behavioral_subset.motorl_f);
+ix=~isnan(behavioral_subset.bigfactor3);
 %  ix=ix+(subjects_subset.lesion_side==0);
 % ix=ix==2;
-% sum(ix)
-% for i=1:400
-%     [temp_a(i,1) temp_a(i,2)]=corr(ED_func_before(i,ix)',behavioral_subset.motorl_f(ix));
-%     [temp_b(i,1) temp_b(i,2)]=corr(ED_func_after(i,ix)',behavioral_subset.motorl_f(ix));
-%     [temp_c(i,1) temp_c(i,2)]=corr(lag_diff(i,ix)',behavioral_subset.motorl_f(ix));
-%     [temp_d(i,1) temp_d(i,2)]=corr(ED_anat(i,ix)',behavioral_subset.motorl_f(ix));
-% end
-% 
-% a=(temp_a(:,2)<0.05).*temp_a(:,1);
-% b=(temp_b(:,2)<0.05).*temp_b(:,1);
-% c=(temp_c(:,2)<0.05).*temp_c(:,1);
-% d=(temp_d(:,2)<0.05).*temp_d(:,1);
-% 
-% % a=fdr_bh(temp_a(:,2)).*temp_a(:,1);
-% % b=fdr_bh(temp_b(:,2)).*temp_b(:,1);
-% % c=fdr_bh(temp_c(:,2)).*temp_c(:,1);
-% % d=fdr_bh(temp_d(:,2)).*temp_d(:,1);
-% 
-% 
-% % a=temp_a(:,1);
-% % a=a.*(abs(a)>0.3);
-% % 
-% % b=temp_b(:,1);
-% % b=b.*(abs(b)>0.3);
-% % 
-% % c=temp_c(:,1);
-% % c=c.*(abs(c)>0.3);
-% % 
-% % d=temp_d(:,1);
-% % d=d.*(abs(d)>0.3);
-% plot_hemispheres([a b c d], {surf_lh,surf_rh}, ...
-%     'parcellation',labeling.schaefer_400);
-% 
-% 
-% 
-% 
-% 
-% 
-
-
-
-
-
-
-
-
-
-
-%% Clustering with hctsa - canceled
-for j=1
-for i=1
-    matrix = mean_lag';
-    timeSeriesData = cell(size(matrix, 1), 1);
-    for j = 1:size(matrix, 1)
-        timeSeriesData{j} = matrix(j, :)';
-    end
-
-    labels=subjects.participant_id;
-    controlEntries = repmat({'control'}, 24, 1);
-    strokeEntries = repmat({'stroke'}, 106, 1);
-    keywords = [controlEntries; strokeEntries];
-
-    save('INP_test.mat','timeSeriesData','labels','keywords');
-    TS_Init('INP_test.mat','catch22');close
-    TS_Compute(false)
-    TS_LabelGroups('raw',{'control','stroke'});
-    TS_InspectQuality('summary')
-    TS_Normalize('mixedSigmoid',[0.8,1.0]);
-    distanceMetricRow = 'euclidean'; % time-series feature distance
-    linkageMethodRow = 'average'; % linkage method
-    distanceMetricCol = 'corr_fast'; % a (poor) approximation of correlations with NaNs
-    accuracies(i,1)=TS_Classify('norm');
-
-    matrix =before_scaled(:,ix)';
-    timeSeriesData = cell(size(matrix, 1), 1);
-    for j = 1:size(matrix, 1)
-
-        timeSeriesData{j} = matrix(j, :)';
-    end
-
-    labels=(subjects.participant_id(ix));
-    cellArray = cell(size(labels)); % Preallocate cell array
-
-    % Logical indexing to assign 'left' or 'right' based on the values
-    cellArray(subjects.lesion_side(ix) == 0) = {'a'};
-    cellArray(subjects.lesion_site(ix) == 1) = {'b'};
-    cellArray(subjects.lesion_site(ix) == 2) = {'c'};
-    cellArray(subjects.lesion_site(ix) == 3) = {'d'};
-    cellArray(subjects.lesion_site(ix) == 4) = {'e'};
-    cellArray(subjects.lesion_site(ix) == 5) = {'f'};
-    cellArray(subjects.lesion_site(ix) == 6) = {'g'};
-    keywords = cellArray;
-
-    save('INP_test.mat','timeSeriesData','labels','keywords');
-    TS_Init('INP_test.mat','catch22');close
-    TS_Compute(false)
-    TS_LabelGroups('raw',{'a','b','c','d','e','f','g'});
-    TS_InspectQuality('summary')
-    TS_Normalize('mixedSigmoid',[0.8,1.0]);
-    distanceMetricRow = 'euclidean'; % time-series feature distance
-    linkageMethodRow = 'average'; % linkage method
-    distanceMetricCol = 'corr_fast'; % a (poor) approximation of correlations with NaNs
-    accuracies(i,2)=TS_Classify('norm');
-end
-TS_PlotDataMatrix('colorGroups',true)
-
-
-
-
-ix=~isnan(subjects.lesion_site)
-
-subjects.lesion_site(ix)
-
-[idx,C] =kmeans((squeeze(before_scaled(:,1,:))),2)
-
-
-heatmap(confusionmat(subjects.subj_type,idx-1))
-
-
-% Cluster after correlation as in Striem-Amit 
-stroke_subjects=subjects(num_control+1:end,:);
-% tocluster=squeeze(EDtocontrol_after_sep(:,num_control+1:end,2))
-tocluster=corr(EDtocontrol_after(:,num_control+1:end))'
-tree = linkage(tocluster','average');
-[~,T] = dendrogram(tree,10);
-
-ix1=logical(sum(T==[4 8],2));
-cl1=mean(tocluster(:,ix1),2);
-ix2=logical(sum(T==[1 10],2));
-cl2=mean(tocluster(:,ix2),2);
-ix3=logical(sum(T==[7 9],2));
-cl3=mean(tocluster(:,ix3),2);
-cl4=mean(tocluster(:,find(T==4)),2)
-cl5=mean(tocluster(:,find(T==5)),2)
-cl6=mean(tocluster(:,find(T==6)),2)
-cl7=mean(tocluster(:,find(T==7)),2)
-cl8=mean(tocluster(:,find(T==8)),2)
-cl9=mean(tocluster(:,find(T==9)),2)
-cl10=mean(tocluster(:,find(T==10)),2)
-plot_hemispheres([cl1 cl2 cl3], {surf_lh,surf_rh}, ...
-'parcellation',labeling.schaefer_400, 'labeltext',{'1', '2', '3'});
-
+sum(ix)
 for i=1:400
-[B,BINT,R,RINT,STATS] = regress(EDtocontrol_before(i,:)',[ones(130,1) subjects.subj_type subjects.age subjects.gender]);
-ps(i)=STATS(3);
-bs(i)=B(2);
-
-[B,BINT,R,RINT,STATS] = regress(EDtocontrol_after(i,:)',[ones(130,1) subjects.subj_type subjects.age subjects.gender]);
-ps2(i)=STATS(3);
-bs2(i)=B(2);
-end
-plot_hemispheres([(fdr_bh(ps).*bs)' (fdr_bh(ps2).*bs2)'], {surf_lh,surf_rh}, ...
-'parcellation',labeling.schaefer_400, 'labeltext',{'1', '2'});
+    [temp_a(i,1) temp_a(i,2)]=corr(ED_func_before(i,ix)',behavioral_subset.bigfactor3(ix));
+    [temp_b(i,1) temp_b(i,2)]=corr(ED_func_after(i,ix)',behavioral_subset.bigfactor3(ix));
+    [temp_c(i,1) temp_c(i,2)]=corr(lag_diff_subset(i,ix)',behavioral_subset.bigfactor3(ix));
+    [temp_d(i,1) temp_d(i,2)]=corr(ED_anat(i,ix)',behavioral_subset.bigfactor3(ix));
 end
 
+a=fdr_bh(temp_a(:,2)).*temp_a(:,1);
+b=fdr_bh(temp_b(:,2)).*temp_b(:,1);
+c=fdr_bh(temp_c(:,2)).*temp_c(:,1);
+d=temp_d(:,1).*fdr_bh(temp_d(:,2));
 
+plot_hemispheres([a b c d], {surf_lh,surf_rh}, ...
+    'parcellation',labeling.schaefer_400, 'labeltext',{'ED_f_u_u_n_c before','ED_f_u_u_n_c after', 'Lag', 'ED_a_n_a_t'} );
+% 
+% 
+% 
+% 
+% 
+% 
 
+% Lesion locations on surface
+lesions_on_gm=load_nii('/media/koba/MULTIBOOT/LesionMaks_222/NiftiLesions/other/lesions_on_gm.nii.gz');
+lesions_on_gm=reshape(squeeze((lesions_on_gm.img)),[],1);
+lesions_on_gm=lesions_on_gm(parcellation_mask_whole,:);
 
-
-
-
-
-
-%% Group-level analysis -- The following code is just trial-errors, curated code for group-level is in other files
-%
-
-for i=1:size(corrmats,1)
-    for j=1:10
-        [h,p,c,stats]=ttest(squeeze(before_scaled(i,j,1:num_control)),squeeze(after_scaled(i,j,1:num_control)));
-        control_p(i,j)=p;
-        control_t(i,j)=stats.tstat;
-        [h,p,c,stats]=ttest(squeeze(before_scaled(i,j,num_control+1:end)),squeeze(after_scaled(i,j,num_control+1:end)));
-        stroke_p(i,j)=p;
-        stroke_t(i,j)=stats.tstat;
-
-        [h,p,c,stats]=ttest2(squeeze(before_scaled(i,j,1:num_control)),squeeze(before_scaled(i,j,num_control+1:end)));
-        controlXstroke_before_p(i,j)=p;
-        controlXstroke_before_t(i,j)=stats.tstat;
-        [h,p,c,stats]=ttest2(squeeze(after_scaled(i,j,1:num_control)),squeeze(after_scaled(i,j,num_control+1:end)));
-        controlXstroke_after_p(i,j)=p;
-        controlXstroke_after_t(i,j)=stats.tstat;
-    end
-end
-figure
-imagesc(fdr_bh(control_p).*control_t)
-figure
-imagesc(fdr_bh(stroke_p).*stroke_t)
-figure
-imagesc(fdr_bh(controlXstroke_before_p).*controlXstroke_before_t)
-figure
-imagesc(fdr_bh(controlXstroke_after_p).*controlXstroke_after_t)
-
-fdr_mask=(fdr_bh(control_p).*control_t);
-plot_hemispheres(fdr_mask(:,1:3), {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-fdr_mask=(fdr_bh(stroke_p).*stroke_t);
-plot_hemispheres(fdr_mask(:,1:3), {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-
-
-
-for i=1:10
-    [h,p,c,stats]=ttest(before_lambda(i,1:num_control),after_lambda(i,1:num_control));
-    lambdas_control(i,1)=p;
-    lambdas_control(i,2)=stats.tstat;
-    [h,p,c,stats]=ttest(before_lambda(i,num_control+1:end),after_lambda(i,num_control+1:end));
-    lambdas_stroke(i,1)=p;
-    lambdas_stroke(i,2)=stats.tstat;
-
-    [h,p,c,stats]=ttest2(before_lambda(i,1:num_control),before_lambda(i,num_control+1:end));
-    lambdas_controlXstroke_before(i,1)=p;
-    lambdas_controlXstroke_before(i,2)=stats.tstat;
-    [h,p,c,stats]=ttest2(after_lambda(i,1:num_control),after_lambda(i,num_control+1:end));
-    lambdas_controlXstroke_after(i,1)=p;
-    lambdas_controlXstroke_after(i,2)=stats.tstat;
-
-end
-
-% Euclidian distance
-for i=1:max(parcellation)
-    for j=1:size(subjects,1)
-        distances(i,j)=norm(mean(after_aligned(i,1:3,1:num_control),3)-after_aligned(i,1:3,j));
-    end
-end
-
-plot_hemispheres([var(distances(:,1:num_control),[],2) var(distances(:,num_control+1:end),[],2)], {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Distance','Distance'});
-% Lags
-lags=load_nii('delays_custom/delays.nii.gz');
-lags=reshape(squeeze((lags.img)),[],875);
-lags=lags(parcellation_mask_whole,:);
-
-% take the average of each subject
-positions=zeros(size(corrmats,3),1);
-corrmats_reduced=zeros(max(parcellation),max(parcellation),size(subjects,1));
-corrmats_corrected_reduced=zeros(max(parcellation),max(parcellation),size(subjects,1));
-for i=1:size(subjects,1)
-    sub_id=subjects.participant_id(i);
-    for j=1:size(corrmats,3)
-        positions(j)=contains(func_list(j,:),sub_id);
-    end
-    lags_reduced(:,i)=mean(lags(:,logical(positions)),2);
-end
-
-% Mean lag
 for j=1:max(parcellation_reduced)
-    for i=1:size(subjects,1)
-        mean_lag(j,i)=mean(lags_reduced(parcellation_reduced==j,i));
-    end
+        mean_lesions_on_gm(j,1)=mean(lesions_on_gm(parcellation_reduced==j,:));
 end
-plot_hemispheres([mean(mean_lag(:,1:num_control),2)*-1 mean(mean_lag(:,num_control+1:end),2)*-1], {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Mean Lag','Mean Lag'});
-% Correlation with lag and gradient value
-for i=1:size(subjects,1)
-    for j=1:10
-        lagXgra_before(i,j)=corr(squeeze(before_scaled(:,j,i)),mean_lag(:,i)*-1);
-        lagXgra_after(i,j)=corr(squeeze(after_scaled(:,j,i)),mean_lag(:,i)*-1);
-    end
-end
-hold on;histogram(lagXgra_before(27:end,4));histogram(lagXgra_before(1:26,4));hold off
-figure
-hold on;histogram(lagXgra_after(27:end,3));histogram(lagXgra_after(1:26,3));hold off
-[h,p,c,stats]=ttest2(lagXgra_before(1:26,1),lagXgra_before(27:end,1))
-[h,p,c,stats]=ttest2(lagXgra_after(1:26,3),lagXgra_after(27:end,3))
 
-[h,p,c,stats]=ttest(lagXgra_before(1:26,2),lagXgra_after(1:26,2))
-[h,p,c,stats]=ttest(lagXgra_before(27:end,3),lagXgra_after(27:end,3))
-
-%
-for i=1:size(subjects,1)
-    for j=1:10
-        dif=before_scaled(:,j,i)-after_scaled(:,j,i);
-        lagXgra_before(i,j)=corr(dif,mean(mean_lag(:,1:26),2)*-1,"Type","Spearman");
-        %         dif=mean(after_scaled(:,j,1:26),3)-after_scaled(:,j,i);
-        %         lagXgra_after(i,j)=corr(dif,mean_lag(:,i)*-1);
-    end
-end
-corr((mean(before_scaled(:,:,1:26),3)-mean(after_scaled(:,:,1:26),3)),mean(mean_lag(:,1:26),2))
-corr((mean(before_scaled(:,:,27:end),3)-mean(after_scaled(:,:,27:end),3)),mean(mean_lag(:,27:end),2))
-corr((mean(before_scaled,3)-mean(after_scaled,3)),mean(mean_lag,2))
-
-% Node-wise correlation instead of whole-brain
-
-for i=1:max(parcellation_reduced)
-    for j=1:10
-        tempcors_c(i,j)=corr(squeeze(before_scaled(i,j,1:26)),mean_lag(i,1:26)');
-        tempcors_s(i,j)=corr(squeeze(after_scaled(i,j,27:end)),mean_lag(i,27:end)');
-    end
-end
-%% TODO
-% Count total nans in each mean matrix
-
-
-% Intrahemispheric connectivity
-load('corrmats_temp.mat')
-
-% whole brain
-m = (conn_matrices.schaefer_400);
-corrmats_right=atanh(m(201:end,201:end));
-corrmats_left=atanh(m(1:200,1:200));
-ref_whole = GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-m(isinf(m))=1;
-
-ref_whole = ref_whole.fit(m);
-plot_hemispheres(ref_whole.gradients{1}(:,1:3), {surf_lh,surf_rh}, ...
+obj=plot_hemispheres([mean_lesions_on_gm], {surf_lh,surf_rh}, ...
     'parcellation',labeling.schaefer_400);
-gradient_in_euclidean([ref_whole.gradients{1}(:,[1 3])] ,{surf_lh,surf_rh},labeling.schaefer_400);
+obj.colormaps(slanCM('magma'))
 
+dd=mean_lesions_on_gm(:,1);
+for i=1:7
+        network_means_EDtocontrol_before(i)=mean(dd(seven_network_positions==i));
+%         network_means_EDtocontrol_after(i)=mean(EDtocontrol_after(seven_network_positions==i));
 
-% seperate hemispheres
-
-ref_lh = GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-corrmats_left(isinf(corrmats_left))=1;
-ref_lh = ref_lh.fit(corrmats_left, 'reference', ref_whole.gradients{1}(1:200,:));
-plot_hemispheres([ref_lh.aligned{1}(:,1:2);ref_lh.aligned{1}(:,1:2)] , {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400);
-gradient_in_euclidean([ref_lh.aligned{1}(:,1:2);ref_lh.aligned{1}(:,1:2)],{surf_lh,surf_rh},labeling.schaefer_400);
-
-ref_rh = GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-corrmats_right(isinf(corrmats_right))=1;
-ref_rh = ref_rh.fit(corrmats_right, 'reference', ref_whole.gradients{1}(201:400,:));
-plot_hemispheres([ref_rh.aligned{1}(:,1:3);ref_rh.aligned{1}(:,1:3)] , {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400);
-gradient_in_euclidean([ref_rh.aligned{1}(:,[1 3]);ref_rh.aligned{1}(:,[1 3])],{surf_lh,surf_rh},labeling.schaefer_400);
-
-
-% take the average of each subject
-positions=zeros(size(corrmats,3),1);
-corrmats_reduced=zeros(max(parcellation),max(parcellation),size(subjects,1));
-for i=1:size(subjects,1)
-    sub_id=subjects.participant_id(i);
-    for j=1:size(corrmats,3)
-        positions(j)=contains(func_list(j,:),sub_id);
-    end
-    corrmats_reduced(:,:,i)=atanh(mean(corrmats(:,:,logical(positions)),3));
+        network_sd_EDtocontrol_before(i)=std(dd(seven_network_positions==i));
+%         network_sd_EDtocontrol_after(i)=std(EDtocontrol_after(seven_network_positions==i));
 end
-corrmats_reduced(isinf(corrmats_reduced))=1;
 
-% % Regress out the confounds
-% confounds=[subjects.age subjects.gender subjects.handed];
-% for i=1:size(corrmats,1)
-%     for j=1:size(corrmats,1)
-%         [~,~,residuals] = regress(squeeze(corrmats_reduced(i,j,:)),[ones(size(confounds,1),1) confounds]);
-%         corrmats_reduced_clean(i,j,:)=residuals;
-%     end
-% end
+figure;axes('XTick', 1:7, 'XTickLabel', network_names, 'FontSize', 16);hold on;ylabel('Mean ED to control - before')
+    bar(network_means_EDtocontrol_before, 'FaceColor', 'flat', 'CData', colormap);
+     errorbar(1:numel(network_means_EDtocontrol_before), network_means_EDtocontrol_before, network_sd_EDtocontrol_before, network_sd_EDtocontrol_before, ...
+         'Color', 'k', 'LineStyle', 'None');
 
-% Get the gradients for each subject and do the group analysis
-for i=1:size(corrmats_reduced,3)
+ for i=1:84
+    [anats(i,1) anats(i,2)]=corr(ED_anat(:,i),mean_lesions_on_gm);
+ end
+ mean(anats)
+[h,p,c,stats]=ttest(atanh(anats(:,1)))
+histogram(atanh(anats(:,1)))
+
+ for i=1:130
+    [funcs(i,1) funcs(i,2)]=corr(EDtocontrol_before(:,i),mean_lesions_on_gm);
+ end
+ mean(funcs)
+[h,p,c,stats]=ttest(atanh(funcs(:,1)))
+histogram(atanh(funcs(:,1)))
+%% Heterogeneity: Jaccard index 
+
+% Load the resampled lesion masks 
+
+mask_str='/media/koba/MULTIBOOT/net/ascratch/people/plgkoba/stroke_BIDS_firs_sessions/derivatives/NiftiLesions/resampled/SUB_lesion_resampled.nii.gz';
+for i=1:84
     disp(i)
-    m=corrmats_reduced(:,:,i);
-    m(isnan(m))=1;
-    whole_brain=GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-    whole_brain=whole_brain.fit(m,'reference',ref_whole.gradients{1});
-    whole_brain_gradients{i}=whole_brain;
+    for j=1:84
 
-    whole_brain_gradients_aligned(:,:,i)=whole_brain_gradients{i}.aligned{1};
-    before_lambda(:,i)=whole_brain_gradients{i}.lambda{1}./sum(whole_brain_gradients{i}.lambda{1});
-end
-% Rescale the gradients
-% for i=1:10
-%     for j=1:size(subjects,1)
-%         centered=whole_brain_gradients_aligned(:,i,j)-mean(whole_brain_gradients_aligned(:,i,j));
-%         whole_brain_gradients_aligned_scaled(:,i,j)=centered./std(centered);
-%     end
-% end
+        mask_sub1=strrep(mask_str,'SUB',subjects_subset.participant_id{i});
+        mask_sub1_img=load_nii(mask_sub1);
+        mask_sub1_img=mask_sub1_img.img;
 
-wb_control=mean(whole_brain_gradients_aligned(:,:,1:num_control),3);
-wb_stroke=mean(whole_brain_gradients_aligned(:,:,num_control+1:end),3);
-plot_hemispheres(wb_control(:,[1 2 3]), {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-plot_hemispheres(wb_stroke(:,1:3), {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-gradient_in_euclidean(wb_control(:,[1 3]),{surf_lh,surf_rh},labeling.schaefer_400);
-gradient_in_euclidean(wb_stroke(:,[1 3]),{surf_lh,surf_rh},labeling.schaefer_400);
-scree_plot(mean(before_lambda(:,1:num_control),2))
-scree_plot(mean(before_lambda(:,num_control+1:end),2))
+        mask_sub2=strrep(mask_str,'SUB',subjects_subset.participant_id{j});
+        mask_sub2_img=load_nii(mask_sub2);
+        mask_sub2_img=mask_sub2_img.img;
 
-% Do it for hemispheres
-% Get the gradients for each subject and do the group analysis
-for i=1:size(corrmats_reduced,3)
-    disp(i)
-    m=corrmats_reduced(1:200,1:200,i);
-    m(isnan(m))=1;
-    left_brain=GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-    left_brain=left_brain.fit(m,'reference',ref_lh.gradients{1});
-    left_brain_gradients{i}=left_brain;
+        % Find coordinates of lesions in matrix1 and matrix2
+        [A_x, A_y, A_z] = ind2sub(size(mask_sub1_img), find(mask_sub1_img == 1));
+        [B_x, B_y, B_z] = ind2sub(size(mask_sub2_img), find(mask_sub2_img == 1));
 
-    left_brain_gradients_aligned(:,:,i)=left_brain_gradients{i}.aligned{1};
-    left_lambda(:,i)=left_brain_gradients{i}.lambda{1}./sum(left_brain_gradients{i}.lambda{1});
+        % Calculate Dice Similarity
+        union = sum(sum(sum(mask_sub1_img | mask_sub2_img)));
+        inter = sum(sum(sum(mask_sub1_img & mask_sub2_img)));
+        total_sum = sum(sum(sum(mask_sub1_img))) + sum(sum(sum(mask_sub2_img)));
+        %intersection_dice = nnz(ismember([A_x, A_y, A_z], [B_x, B_y, B_z]));
+        dice_similarity = 2 * inter / (total_sum);
 
-    m=corrmats_reduced(201:end,201:end,i);
-    m(isnan(m))=1;
-    right_brain=GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-    right_brain=right_brain.fit(m,'reference',ref_rh.gradients{1});
-    right_brain_gradients{i}=right_brain;
+        % Calculate Jaccard Similarity
+        % intersection_jaccard = nnz(ismember([A_x, A_y, A_z], [B_x, B_y, B_z]));
+        % union_jaccard = numel(unique([A_x, A_y, A_z; B_x, B_y, B_z], 'rows'));
+        % jaccard_similarity = intersection_jaccard / union_jaccard;
+        jaccard_similarity = inter/union;
 
-    right_brain_gradients_aligned(:,:,i)=right_brain_gradients{i}.aligned{1};
-    right_lambda(:,i)=right_brain_gradients{i}.lambda{1}./sum(right_brain_gradients{i}.lambda{1});
-end
-% Rescale the gradients
-% for i=1:10
-%     for j=1:size(subjects,1)
-%         centered=left_brain_gradients_aligned(:,i,j)-mean(left_brain_gradients_aligned(:,i,j));
-%         left_brain_gradients_aligned_scaled(:,i,j)=centered./std(centered);
-%         centered=right_brain_gradients_aligned(:,i,j)-mean(right_brain_gradients_aligned(:,i,j));
-%         right_brain_gradients_aligned_scaled(:,i,j)=centered./std(centered);
-%     end
-% end
-rh_control=mean(right_brain_gradients_aligned(:,:,1:num_control),3);
-lh_control=mean(left_brain_gradients_aligned(:,:,1:num_control),3);
-plot_hemispheres([rh_control(:,[1:3]);rh_control(:,[1:3])], {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-plot_hemispheres([lh_control(:,[1:3]);lh_control(:,[1:3])], {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-gradient_in_euclidean([rh_control(:,[1 3]);rh_control(:,[1 3])],{surf_lh,surf_rh},labeling.schaefer_400);
-gradient_in_euclidean([lh_control(:,[1 3]);lh_control(:,[1 3])],{surf_lh,surf_rh},labeling.schaefer_400);
+        % Calculate centroid of lesions
+        centroid_A = [mean(A_x), mean(A_y), mean(A_z)];
+        centroid_B = [mean(B_x), mean(B_y), mean(B_z)];
 
-% Choose lesion site index
-rh_stroke=mean(right_brain_gradients_aligned(:,:,subjects.lesion_side==0),3); % zero is for left
-lh_stroke=mean(left_brain_gradients_aligned(:,:,subjects.lesion_side==1),3); % one is for right
-plot_hemispheres([rh_stroke(:,[1:3]);rh_stroke(:,[1:3])], {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-plot_hemispheres([lh_stroke(:,[1:3]);lh_stroke(:,[1:3])], {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
-gradient_in_euclidean([rh_stroke(:,[1 3]);rh_stroke(:,[1 3])],{surf_lh,surf_rh},labeling.schaefer_400);
-gradient_in_euclidean([lh_stroke(:,[1 3]);lh_stroke(:,[1 3])],{surf_lh,surf_rh},labeling.schaefer_400);
+        % Calculate Euclidean distance between centroids
+        distance = norm(centroid_A - centroid_B);
+        rho1=corr(ED_func_before(:,i),ED_func_before(:,j),'Type','Spearman');
+        rho2=corr(ED_func_before(:,i),ED_func_after(:,j),'Type','Spearman');
 
-% Group-level analysis
-
-for i=1:size(corrmats,1)/2
-    for j=1:10
-
-        [h,p,c,stats]=ttest2(squeeze(right_brain_gradients_aligned_scaled(i,j,1:num_control)),squeeze(right_brain_gradients_aligned_scaled(i,j,subjects.lesion_side==0)));
-        rh_p(i,j)=p;
-        rh_t(i,j)=stats.tstat;
-        [h,p,c,stats]=ttest2(squeeze(left_brain_gradients_aligned_scaled(i,j,1:num_control)),squeeze(left_brain_gradients_aligned_scaled(i,j,subjects.lesion_side==0)));
-        lh_p(i,j)=p;
-        lh_t(i,j)=stats.tstat;
+        dicecoefs(i,j)=dice_similarity;
+        jaccard(i,j)=jaccard_similarity;
+        ED_between_lesions(i,j)=distance;
+        ED_func_corr_before(i,j)=rho1;
+        ED_func_corr_after(i,j)=rho2;
     end
 end
-figure
-imagesc(fdr_bh(rh_p).*rh_t)
-figure
-imagesc(fdr_bh(lh_p).*lh_t)
-figure
-
-
-fdr_mask=fdr_bh(stroke_p(:,1:3)).*stroke_t(:,1:3);
-plot_hemispheres(fdr_mask(:,1:3), {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400, 'labeltext',{'Gradient 1','Gradient 2', 'Gradient 3'});
 
 
 
-for i=1:10
-    [h,p,c,stats]=ttest(before_lambda(i,1:num_control),after_lambda(i,1:num_control));
-    lambdas_control(i,1)=p;
-    lambdas_control(i,2)=stats.tstat;
-    [h,p,c,stats]=ttest(before_lambda(i,num_control+1:end),after_lambda(i,num_control+1:end));
-    lambdas_stroke(i,1)=p;
-    lambdas_stroke(i,2)=stats.tstat;
+dicecoefs1D=dicecoefs(tril(true(size(dicecoefs)), -1));
+jaccard1D=jaccard(tril(true(size(jaccard)), -1));
+ED_between_lesions1D=ED_between_lesions(tril(true(size(ED_between_lesions)), -1));
+ED_func_corr_before1D=ED_func_corr_before(tril(true(size(ED_func_corr_before)), -1));
+ED_func_corr_after1D=ED_func_corr_after(tril(true(size(ED_func_corr_after)), -1));
+[r,p] = corr([dicecoefs1D jaccard1D ED_between_lesions1D ED_func_corr_before1D ED_func_corr_after1D ],'Type','Spearman');
 
-    [h,p,c,stats]=ttest2(before_lambda(i,1:num_control),before_lambda(i,num_control+1:end));
-    lambdas_controlXstroke_before(i,1)=p;
-    lambdas_controlXstroke_before(i,2)=stats.tstat;
-    [h,p,c,stats]=ttest2(after_lambda(i,1:num_control),after_lambda(i,num_control+1:end));
-    lambdas_controlXstroke_after(i,1)=p;
-    lambdas_controlXstroke_after(i,2)=stats.tstat;
+dicecoefs_left=dicecoefs(subjects_subset.lesion_side==0,subjects_subset.lesion_side==0);
+dicecoefs_right=dicecoefs(subjects_subset.lesion_side==1,subjects_subset.lesion_side==1);
 
-end
+jaccard_left=jaccard(subjects_subset.lesion_side==0,subjects_subset.lesion_side==0);
+jaccard_right=jaccard(subjects_subset.lesion_side==1,subjects_subset.lesion_side==1);
 
-%% Work on one gradient
+ED_between_lesions_left=ED_between_lesions(subjects_subset.lesion_side==0,subjects_subset.lesion_side==0);
+ED_between_lesions_right=ED_between_lesions(subjects_subset.lesion_side==1,subjects_subset.lesion_side==1);
 
-% take the average of each subject
-positions=zeros(size(corrmats,3),1);
-corrmats_reduced=zeros(max(parcellation),max(parcellation),size(subjects,1));
-for i=1:size(subjects,1)
-    sub_id=subjects.participant_id(i);
-    for j=1:size(corrmats,3)
-        positions(j)=contains(func_list(j,:),sub_id);
-    end
-    corrmats_reduced(:,:,i)=atanh(mean(corrmats(:,:,logical(positions)),3));
-end
-corrmats_reduced(isinf(corrmats_reduced))=1;
+ED_func_corr_before_left=ED_func_corr_before(subjects_subset.lesion_side==0,subjects_subset.lesion_side==0);
+ED_func_corr_before_right=ED_func_corr_before(subjects_subset.lesion_side==1,subjects_subset.lesion_side==1);
 
-corrmats_control_whole=corrmats_reduced(:,:,1:num_control);
-corrmats_stroke_whole=corrmats_reduced(:,:,num_control+1:end);
+ED_func_corr_after_left=ED_func_corr_after(subjects_subset.lesion_side==0,subjects_subset.lesion_side==0);
+ED_func_corr_after_right=ED_func_corr_after(subjects_subset.lesion_side==1,subjects_subset.lesion_side==1);
 
-corrmats_control_right=(corrmats_reduced(201:end,201:end,1:num_control));
-corrmats_control_left=(corrmats_reduced(1:200,1:200,num_control+1:end));
+dicecoefs_left1D=dicecoefs_left(tril(true(size(dicecoefs_left)), -1));
+jaccard_left1D=jaccard_left(tril(true(size(jaccard_left)), -1));
+ED_between_lesions_left1D=ED_between_lesions_left(tril(true(size(ED_between_lesions_left)), -1));
+ED_func_corr_before_left1D=ED_func_corr_before_left(tril(true(size(ED_func_corr_before_left)), -1));
+ED_func_corr_after_left1D=ED_func_corr_after_left(tril(true(size(ED_func_corr_after_left)), -1));
 
-corrmats_stroke_right=(corrmats_reduced(201:end,201:end,1:num_control));
-corrmats_stroke_left=(corrmats_reduced(1:200,1:200,num_control+1:end));
-
-% whole brain
-control_whole = GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-control_whole = control_whole.fit(mean(corrmats_control_whole,3),'reference',reference_gradient.gradients{1});
-gradient_in_euclidean([control_whole.aligned{1}(:,[1 2])] ,{surf_lh,surf_rh},labeling.schaefer_400);
-
-stroke_whole = GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-stroke_whole = stroke_whole.fit(mean(corrmats_stroke_whole,3,"omitnan"),'reference',reference_gradient.gradients{1});
-gradient_in_euclidean([stroke_whole.aligned{1}(:,[1 2])] ,{surf_lh,surf_rh},labeling.schaefer_400);
-
-
-% hemispheres
-ref_lh = GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-corrmats_left(isinf(corrmats_left))=1;
-ref_lh = ref_lh.fit(corrmats_left, 'reference', reference_gradient.gradients{1}(1:200,:));
-plot_hemispheres([ref_lh.aligned{1}(:,1:2);ref_lh.aligned{1}(:,1:2)] , {surf_lh,surf_rh}, ...
-    'parcellation',labeling.schaefer_400);
-gradient_in_euclidean([ref_lh.aligned{1}(:,1:2);ref_lh.aligned{1}(:,1:2)],{surf_lh,surf_rh},labeling.schaefer_400);
-
-ref_rh = GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-corrmats_right(isinf(corrmats_right))=1;
-ref_rh = ref_rh.fit(corrmats_right, 'reference', reference_gradient.gradients{1}(201:end,:));
-gradient_in_euclidean([ref_rh.aligned{1}(:,[1 3]);ref_rh.aligned{1}(:,1:2)],{surf_lh,surf_rh},labeling.schaefer_400);
-
-control_rh = GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-control_rh = control_rh.fit(mean(corrmats_control_whole(201:end,201:end,:),3),'reference',reference_gradient.gradients{1}(201:end,:));
-gradient_in_euclidean([control_rh.aligned{1}(:,[1 3]);control_rh.aligned{1}(:,[1 2])] ,{surf_lh,surf_rh},labeling.schaefer_400);
-stroke_rh = GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-stroke_rh = stroke_rh.fit(mean(corrmats_stroke_whole(201:end,201:end,:),3,"omitnan"),'reference',reference_gradient.gradients{1}(201:end,:));
-gradient_in_euclidean([stroke_rh.aligned{1}(:,[1 3]);stroke_rh.aligned{1}(:,[1 2])] ,{surf_lh,surf_rh},labeling.schaefer_400);
-
-stroke_whole = GradientMaps('kernel','na','approach','dm','alignment','pa','n_components',10);
-stroke_whole = stroke_whole.fit(mean(corrmats_stroke_whole,3,"omitnan"),'reference',reference_gradient.gradients{1});
-gradient_in_euclidean([stroke_whole.aligned{1}(:,[1 2])] ,{surf_lh,surf_rh},labeling.schaefer_400);
+dicecoefs_right1D=dicecoefs_right(tril(true(size(dicecoefs_right)), -1));
+jaccard_right1D=jaccard_right(tril(true(size(jaccard_right)), -1));
+ED_between_lesions_right1D=ED_between_lesions_right(tril(true(size(ED_between_lesions_right)), -1));
+ED_func_corr_before_right1D=ED_func_corr_before_right(tril(true(size(ED_func_corr_before_right)), -1));
+ED_func_corr_after_right1D=ED_func_corr_after_right(tril(true(size(ED_func_corr_after_right)), -1));
 
 
 
+[r1,p1] = corr([dicecoefs_left1D jaccard_left1D ED_between_lesions_left1D ED_func_corr_before_left1D ED_func_corr_after_left1D ]);
+[r2,p2] = corr([dicecoefs_right1D(jaccard_right1D>0.2) jaccard_right1D(jaccard_right1D>0.2) ED_between_lesions_right1D(jaccard_right1D>0.2) ED_func_corr_before_right1D(jaccard_right1D>0.2) ED_func_corr_after_right1D(jaccard_right1D>0.2) ]);
 
-%% Make a Spin-permutation
-% Use non-corrected data
-% Check before and after
-% Also check the intrahemispheric
-%
